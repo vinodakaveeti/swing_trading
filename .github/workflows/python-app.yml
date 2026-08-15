@@ -33,6 +33,5 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install -r yahoo_finance_requirements.txt
         python strategy/swing_bot.py --csv-file "${{ github.event.inputs.csv-file}}"
 
