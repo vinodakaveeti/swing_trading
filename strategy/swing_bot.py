@@ -766,7 +766,7 @@ def main():
         # Print summary table for this iteration
         if iteration_results:
             # Prepare the data for the table
-            headers = ["Symbol", "LTP", "Change", "%Change", "Volume", "EMA20", "RSI", "MACD", "Signal", "VolMA", "Verdict", "Entry", "Exit"]
+            headers = ["Symbol", "LTP", "Change", "%Change", "Volume", "EMA20", "RSI", "MACD", "Signal", "Sell/Buy Call", "VolMA", "Verdict", "Entry", "Exit"]
             formatted_rows = []
             for r in iteration_results:
                 entry_str = f"{r['entry_price']:.2f}" if r['entry_price'] is not None else "N/A"
@@ -781,6 +781,7 @@ def main():
                     f"{r['rsi']:.2f}" if r['rsi'] is not None else "N/A",
                     f"{r['macd']:.4f}" if r['macd'] is not None else "N/A",
                     r['signal'] if r['signal'] is not None else "N/A",
+                    r['signal'] if r['signal'] is not None else "N/A",  # Sell/Buy Call column
                     f"{int(r['vol_ma']):,}" if r['vol_ma'] is not None else "N/A",
                     r['verdict'],
                     entry_str,
@@ -795,7 +796,7 @@ def main():
                 col_widths.append(max(header_len, max_cell_len))
 
             # Define text columns (left-aligned) and numeric columns (right-aligned)
-            text_col_indices = [0, 8, 10]  # Symbol, Signal, and Verdict
+            text_col_indices = [0, 8, 9, 11]  # Symbol, Signal, Sell/Buy Call, and Verdict
 
             # Build separator line
             sep = "+"
