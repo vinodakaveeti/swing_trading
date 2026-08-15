@@ -21,9 +21,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.10
@@ -34,7 +31,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}"
-          export TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}"
+          export TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          export TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}"
           python strategy/swing_bot.py --csv-file "${{ github.event.inputs.csv-file || 'ind_nifty50list.csv' }}"
 
