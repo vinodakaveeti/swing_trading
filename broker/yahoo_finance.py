@@ -66,11 +66,11 @@ class YahooFinanceAPI:
         """
         # Set default CSV file if none provided
         if csv_file is None:
-            csv_file = "/Users/vinodakaveeti/Desktop/Projects/swing_trading/ind_nifty50list.csv"
+            csv_file = "ind_nifty50list.csv"
 
-        # Ensure the path is relative to the project root if not absolute
+        # Ensure the path is absolute - if relative, treat as relative to current working directory
         if not os.path.isabs(csv_file):
-            csv_path = os.path.join("/Users/vinodakaveeti/Desktop/Projects/swing_trading", csv_file)
+            csv_path = os.path.join(os.getcwd(), csv_file)
         else:
             csv_path = csv_file
 
