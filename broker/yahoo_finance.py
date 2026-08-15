@@ -93,6 +93,7 @@ class YahooFinanceAPI:
         try:
             # Read symbols from CSV
             symbols = []
+            print(f"[DEBUG] The filename generated is: {csv_path}")
             with open(csv_path, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
