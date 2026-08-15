@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(curl -s http://localhost:8501/_stcore/health)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(kill %1)",
+      "Bash(.venv/bin/pip uninstall *)",
+      "Bash(curl *)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(pip list *)",
+      "Bash(read *)",
+      "Bash(pip3 install *)",
+      "Bash(pkill *)",
+      "Bash(awk '/^    def get_top_nse_performers/,/^    def / {print NR \": \" $0}' /Users/vinodakaveeti/Desktop/Projects/angel-algo-trader/broker/angel_one.py)",
+      "Bash(q *)",
+      "Bash(C-c *)",
+      "Bash(jobs *)",
+      "Bash(tee /tmp/swing_bot_output.txt)",
+      "Bash(python3 -u /Users/vinodakaveeti/Desktop/Projects/angel-algo-trader/strategy/swing_bot.py)",
+      "Read(//tmp/**)",
+      "Bash(deactivate)",
+      "Bash(pip --version)",
+      "Bash(/Users/vinodakaveeti/Desktop/Projects/swing_trading/.venv/bin/pip *)",
+      "Bash(.source .venv/bin/activate)"
+    ]
+  }
+}

@@ -1,0 +1,254 @@
+import os
+import pyotp
+import requests
+from SmartApi import SmartConnect   # pip package: smartapi-python
+from dotenv import load_dotenv
+
+load_dotenv()   # loads .env into os.environ
+
+class AngelOneAPI:
+    """
+    Minimal wrapper: login + get_ltp.
+    All other SmartAPI methods can be added later if needed.
+    """
+    def __init__(self,
+                 api_key=None,
+                 client_id=None,
+                 password=None,
+                 totp_key=None,
+                 pin=None):
+        # Prefer explicit args, fallback to env vars
+        self.api_key    = api_key    or os.getenv("ANGEL_API_KEY")
+        self.client_id  = client_id  or os.getenv("ANGEL_CLIENT_ID")
+        self.password   = password   or os.getenv("ANGEL_PASSWORD")
+        self.totp_key   = totp_key   or os.getenv("ANGEL_TOTP_KEY")
+        self.pin        = pin        or os.getenv("ANGEL_PIN")
+
+        if not all([self.api_key, self.client_id,
+                    self.password or self.pin, self.totp_key]):
+            raise ValueError("Missing Angel One credentials – check .env")
+
+        self.base_url = "https://apiconnect.angelone.in"
+        self.access_token = None
+        self.refresh_token = None
+        self.feed_token = None
+
+        # Initialise SmartConnect (requires only api_key for now)
+        self.smart = SmartConnect(api_key=self.api_key)
+
+    # -----------------------------------------------------------------
+    # Authentication helpers
+    # -----------------------------------------------------------------
+    def _get_totp(self) -> str:
+        """Return current TOTP string."""
+        return pyotp.TOTP(self.totp_key).now()
+
+    def login(self) -> bool:
+        """Logs in using SmartAPI; stores tokens for later calls."""
+        if self.access_token:          # already logged in
+            return True
+
+        totp = self._get_totp()
+        try:
+            # generateSession returns dict with status, message, data
+            resp = self.smart.generateSession(
+                self.client_id,
+                self.pin or self.password,   # SmartAPI expects PIN; if you use password, put it here
+                totp
+            )
+            if not resp.get("status"):
+                raise Exception(f"Login failed: {resp.get('message')}")
+
+            data = resp["data"]
+            # The JWT token from login response already has "Bearer " prefix
+            # But we need to store the raw token for the Authorization header
+            # The SmartAPI library stores the raw token internally, so we use that
+            self.access_token = self.smart.access_token  # Get raw token from SmartAPI instance
+            self.refresh_token = data["refreshToken"]
+            self.feed_token   = data.get("feedToken")
+            # Set the auth header on the SmartConnect session (already done by login, but ensure consistency)
+            self.smart.setAccessToken(self.access_token)
+            self.smart.setRefreshToken(self.refresh_token)
+            self.smart.setFeedToken(self.feed_token)
+            return True
+        except Exception as e:
+            raise Exception(f"Angel One login error: {e}")
+
+    def logout(self) -> None:
+        """Invalidate the session."""
+        if self.access_token:
+            try:
+                self.smart.terminateSession(self.client_id)
+            except Exception:
+                pass
+            self.access_token = self.refresh_token = self.feed_token = None
+
+    # -----------------------------------------------------------------
+    # Market data – LTP (Last Traded Price)
+    # -----------------------------------------------------------------
+    def get_ltp(self, exchange: str, tradingsymbol: str, symboltoken: str) -> float:
+        """
+        Returns the latest price for a given instrument.
+        Raises Exception on failure.
+        """
+        if not self.access_token:
+            raise RuntimeError("Not logged in – call login() first")
+
+        params = {
+            "exchange": exchange,
+            "tradingsymbol": tradingsymbol,
+            "symboltoken": symboltoken
+        }
+        try:
+            resp = self.smart.ltpData(
+                exchange=exchange,
+                tradingsymbol=tradingsymbol,
+                symboltoken=symboltoken
+            )
+            if not resp.get("status"):
+                raise Exception(f"LTP error: {resp.get('message')}")
+
+            # SmartAPI returns: {"status":True, "message":"", "data":{"ltp":<float>}}
+            ltp = float(resp["data"]["ltp"])
+            return ltp
+        except Exception as e:
+            raise Exception(f"Failed to fetch LTP for {tradingsymbol}: {e}")
+
+    # -----------------------------------------------------------------
+    # Market data – Top performers / screener
+    # -----------------------------------------------------------------
+    def get_top_nse_performers(self, limit: int = 100,
+                               criteria: str = "percent_change") -> list[dict]:
+        """
+        Fetch the top NSE performers.
+
+        Parameters
+        ----------
+        limit : int
+            How many stocks to return (max allowed by the API).
+        criteria : str
+            Sorting criterion – e.g. "percent_change", "volume", "value".
+            Adjust based on what the SmartAPI endpoint supports.
+
+        Returns
+        -------
+        list[dict]
+            Each dict contains at least:
+                {
+                    "symbol": "RELIANCE",
+                    "exchange": "NSE",
+                    "symboltoken": "2885",
+                    "ltp": 2450.30,
+                    "change": 12.5,
+                    "percent_change": 0.51,
+                    "volume": 123456,
+                    "value": 302456789.0
+                }
+        """
+        if not self.access_token:
+            raise RuntimeError("Not logged in – call login() first")
+
+        # Predefined Nifty 50 list as fallback (sorted alphabetically for consistency)
+        NIFTY_50 = [
+            "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "APOLLOTYRE", "ASIANPAINT",
+            "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV", "BAJAJHLDNG",
+            "BEL", "BHARTIARTL", "BIOCON", "BPCL", "BRITANNIA", "CIPLA",
+            "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT", "GAIL", "GRASIM",
+            "HCLTECH", "HDFC", "HDFCBANK", "HEROMOTOCO", "HINDALCO", "HAL",
+            "HINDUNILVR", "ICICIBANK", "INDUSINDBK", "INFY", "IOC", "ITC",
+            "JSWSTEEL", "KOTAKBANK", "LT", "LTIM", "M&M", "MARUTI", "NESTLEIND",
+            "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SHREECEM",
+            "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATAMOTORS", "TATASTEEL",
+            "TCS", "TECHM", "TITAN", "ULTRACEMCO", "UPL", "WIPRO"
+        ]
+
+        try:
+            # -----------------------------------------------------------------
+            # 1️⃣  Try the native SmartAPI helper (if it exists)
+            # -----------------------------------------------------------------
+            # SmartAPI may expose: marketData(exchange, data_type, count)
+            # Parameter names vary across versions – adjust if needed.
+            resp = self.smart.marketData(
+                exchange="NSE",
+                data_type=criteria,   # e.g. "percent_change", "volume", "value"
+                count=limit
+            )
+            if not resp.get("status"):
+                raise Exception(f"Market data error: {resp.get('message')}")
+
+            raw = resp.get("data", [])
+
+        except (AttributeError, Exception) as e:
+            # -----------------------------------------------------------------
+            # 2️⃣  Fallback: direct REST call (works for all versions)
+            # -----------------------------------------------------------------
+            import requests
+            url = f"{self.base_url}/rest/marketData/NSE/{criteria}?count={limit}"
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            try:
+                r = requests.get(url, headers=headers, timeout=10)
+                # If response is empty or not JSON, raise
+                if not r.text.strip():
+                    raise Exception("Empty response from market data endpoint")
+                resp = r.json()
+                if not resp.get("status"):
+                    raise Exception(f"Market data error: {resp.get('message')}")
+                raw = resp.get("data", [])
+            except Exception as e2:
+                # If both attempts fail, raise an exception with details
+                raise Exception(
+                    f"Both primary and fallback marketData calls failed. "
+                    f"Primary error: {e}. Fallback error: {e2}"
+                )
+
+        # -----------------------------------------------------------------
+        # 3️⃣  Normalise the response into a simple list of dicts
+        # -----------------------------------------------------------------
+        results = []
+        for item in raw:
+            # SmartAPI returns fields like: symbol, token, exch_seg, ltp, net_price, perc_change, volume, value, etc.
+            results.append({
+                "symbol": item.get("symbol", "").replace("-EQ", ""),   # strip -EQ if present
+                "exchange": item.get("exch_seg", "NSE"),
+                "symboltoken": item.get("token"),
+                "ltp": float(item.get("ltp", 0)),
+                "change": float(item.get("net_price", 0)),
+                "percent_change": float(item.get("perc_change", 0)),
+                "volume": int(item.get("volume", 0)),
+                "value": float(item.get("value", 0.0)),
+            })
+        # If we got fewer than requested, we could pad with the predefined list,
+        # but for now just return what we got.
+        return results
+
+    # -----------------------------------------------------------------
+    # Helper: static symbol lookup for a small watch‑list
+    # -----------------------------------------------------------------
+    @staticmethod
+    def symbol_lookup(symbol: str) -> dict:
+        """
+        Very small static map for the 10‑stock watch‑list.
+        In a production system you would download the scrip master
+        and look up the token dynamically.
+        """
+        # NSE equity symbols → (exchange, symboltoken)
+        MAP = {
+            "RELIANCE": ("NSE", "2885"),
+            "TCS":      ("NSE", "11536"),
+            "HDFCBANK": ("NSE", "1333"),
+            "INFY":     ("NSE", "1594"),
+            "ICICIBANK":("NSE", "4963"),
+            "HDFC":     ("NSE", "1330"),
+            "SBIN":     ("NSE", "3045"),
+            "BHARTIARTL":("NSE","10604"),
+            "KOTAKBANK":("NSE","17818"),
+            "LT":       ("NSE","11483")
+        }
+        if symbol not in MAP:
+            raise KeyError(f"Symbol {symbol} not in watch‑list")
+        exch, tok = MAP[symbol]
+        return {"exchange": exch, "symbol": f"{symbol}-EQ", "symboltoken": tok}

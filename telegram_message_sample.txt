@@ -1,0 +1,21 @@
+🚀 *Swing Bot Trade Signals*
+
+📈 RELIANCE: BUY
+   Entry: ₹2,500.00
+   SL: ₹2,450.00 (-2.0%)
+   TP: ₹2,600.00 (+4.0%)
+   RSI: 58.2 | Vol: 2,45,678
+
+📉 TCS: SELL
+   Entry: ₹3,800.00
+   SL: ₹3,876.00 (+2.0%)
+   TP: ₹3,648.00 (-4.0%)
+   RSI: 42.1 | Vol: 1,89,450
+
+📈 INFY: BUY
+   Entry: ₹1,850.00
+   SL: ₹1,813.00 (-2.0%)
+   TP: ₹1,924.00 (+4.0%)
+   RSI: 62.5 | Vol: 3,12,090
+
+📊 Summary: 3 signals (2 BUY, 1 SELL)
