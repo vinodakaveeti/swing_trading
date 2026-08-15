@@ -22,7 +22,8 @@ import sys
 import os
 import time
 import signal
-from datetime import datetime, timedelta
+import argparse
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 # Add project root to sys.path
@@ -372,7 +373,8 @@ def update_positions(current_prices: Dict[str, float]):
 # ----------------------------------------------------------------------
 # Main trading loop
 # ----------------------------------------------------------------------
-def main():
+def main(csv_file="ind_nifty50list.csv"):
+
     api = YahooFinanceAPI()
 
     try:
@@ -383,9 +385,9 @@ def main():
         log_print(f"[ERROR] Login failed: {e}")
         sys.exit(1)
 
-    # Build initial watch‑list (top 100 NSE performers)
+    # Build initial watch‑list (top NSE performers from specified CSV)
     try:
-        top_stocks = api.get_top_nse_performers(limit=100, criteria="percent_change")
+        top_stocks = api.get_top_nse_performers(limit=50, criteria="percent_change", csv_file=csv_file)
         # Each stock dict already contains exchange and symboltoken from the API
         global WATCH_LIST_INFO
         """
@@ -456,7 +458,7 @@ def main():
         now = time.time()
         if now - _last_watchlist_refresh > _WATCHLIST_REFRESH_INTERVAL:
             try:
-                fresh = api.get_top_nse_performers(limit=100, criteria="percent_change")
+                fresh = api.get_top_nse_performers(limit=50, criteria="percent_change", csv_file=csv_file)
                 new_info = [
                     {
                         "symbol": s["symbol"],
@@ -880,4 +882,10 @@ def main():
         log_print("Good‑bye!")
 
 if __name__ == "__main__":
-    main()
+    # Override csv_file with command line argument if provided
+    parser = argparse.ArgumentParser(description='Swing Trading Bot')
+    parser.add_argument('--csv-file', type=str, default="ind_nifty50list.csv",
+                        help='CSV file containing stock symbols (default: ind_nifty50list.csv)')
+    args = parser.parse_args()
+    csv_file = args.csv_file
+    main(csv_file)

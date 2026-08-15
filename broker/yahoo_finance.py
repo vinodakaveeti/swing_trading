@@ -2,6 +2,8 @@ import yfinance as yf
 from datetime import datetime
 from typing import Dict, List, Optional
 import csv
+import os
+import re
 
 class YahooFinanceAPI:
     """
@@ -56,14 +58,38 @@ class YahooFinanceAPI:
         except Exception as e:
             raise Exception(f"Failed to get LTP for {tradingsymbol}: {e}")
 
-    def get_top_nse_performers(self, limit: int = 100, criteria: str = "percent_change") -> List[Dict]:
+    def get_top_nse_performers(self, limit: int = 50, criteria: str = "percent_change", csv_file: str = None) -> List[Dict]:
         """
         Get top NSE performers based on daily percentage change.
-        Reads equity list from EQUITY_L.csv and fetches details for each symbol.
+        Reads equity list from specified CSV file and fetches details for each symbol.
         Returns list of dicts with symbol data compatible with swing_bot.py expectations.
         """
-        csv_path = "/Users/vinodakaveeti/Desktop/Projects/swing_trading/EQUITY_L.csv"
-        csv_path = "/Users/vinodakaveeti/Desktop/Projects/swing_trading/ind_nifty500list.csv"
+        # Set default CSV file if none provided
+        if csv_file is None:
+            csv_file = "/Users/vinodakaveeti/Desktop/Projects/swing_trading/ind_nifty50list.csv"
+
+        # Ensure the path is relative to the project root if not absolute
+        if not os.path.isabs(csv_file):
+            csv_path = os.path.join("/Users/vinodakaveeti/Desktop/Projects/swing_trading", csv_file)
+        else:
+            csv_path = csv_file
+
+        # Extract limit from filename if csv_file matches pattern ind_nifty{number}list.csv
+        effective_limit = limit  # Default to provided limit
+        if csv_file is not None:
+            # Extract filename from path
+            filename = os.path.basename(csv_file)
+            # Match pattern: ind_nifty{number}list.csv
+            match = re.match(r'ind_nifty(\d+)list\.csv$', filename, re.IGNORECASE)
+            if match:
+                try:
+                    extracted_limit = int(match.group(1))
+                    # Use extracted limit if it's reasonable (between 1 and 10000)
+                    if 1 <= extracted_limit <= 10000:
+                        effective_limit = extracted_limit
+                except ValueError:
+                    pass  # Keep effective_limit as the parameter limit if conversion fails
+
         try:
             # Read symbols from CSV
             symbols = []
@@ -189,7 +215,7 @@ class YahooFinanceAPI:
                 results.sort(key=lambda x: x['percent_change'], reverse=True)
             # For other criteria, we could implement different sorting, but default to percent_change
 
-            return results[:limit]
+            return results[:effective_limit]
 
         except Exception as e:
             # Fallback: return empty list to let caller handle fallback

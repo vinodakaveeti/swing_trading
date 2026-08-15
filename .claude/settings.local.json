@@ -25,7 +25,8 @@
       "Bash(deactivate)",
       "Bash(pip --version)",
       "Bash(/Users/vinodakaveeti/Desktop/Projects/swing_trading/.venv/bin/pip *)",
-      "Bash(.source .venv/bin/activate)"
+      "Bash(.source .venv/bin/activate)",
+      "Bash(ps -eo pid,cmd)"
     ]
   }
 }

@@ -8,6 +8,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      csv-file:
+        description: 'CSV file containing stock symbols (e.g., ind_nifty50list.csv, ind_nifty100list.csv, ind_nifty200list.csv, ind_nifty500list.csv)'
+        required: false
+        default: 'ind_nifty50list.csv'
 
 permissions:
   contents: read
@@ -28,5 +34,5 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r yahoo_finance_requirements.txt
-        python strategy/swing_bot.py
+        python strategy/swing_bot.py --csv-file "${{ github.event.inputs.csv-file}}"
 
