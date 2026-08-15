@@ -2,3 +2,8 @@ pandas
 python-dotenv
 requests
 smartapi-python
+pyotp
+yfinance
+pandas
+logzero
+websocket

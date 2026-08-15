@@ -6,17 +6,39 @@ from dotenv import load_dotenv
 
 load_dotenv()   # loads .env into os.environ
 
+def escape_telegram_text(text: str) -> str:
+    """Escape Telegram Markdown special characters in text for safe insertion."""
+    if not isinstance(text, str):
+        text = str(text)
+    # Escape _ and * to prevent them from being interpreted as Markdown formatting
+    return text.replace('_', r'\_').replace('*', r'\*')
+
+
 class AngelOneAPI:
     """
     Minimal wrapper: login + get_ltp.
     All other SmartAPI methods can be added later if needed.
+    Implemented as singleton to ensure only one login session.
     """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            # Initialize only once
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self,
                  api_key=None,
                  client_id=None,
                  password=None,
                  totp_key=None,
                  pin=None):
+        # Prevent re-initialization
+        if getattr(self, '_initialized', False):
+            return
+
         # Prefer explicit args, fallback to env vars
         self.api_key    = api_key    or os.getenv("ANGEL_API_KEY")
         self.client_id  = client_id  or os.getenv("ANGEL_CLIENT_ID")
@@ -35,6 +57,8 @@ class AngelOneAPI:
 
         # Initialise SmartConnect (requires only api_key for now)
         self.smart = SmartConnect(api_key=self.api_key)
+
+        self._initialized = True
 
     # -----------------------------------------------------------------
     # Authentication helpers
@@ -276,6 +300,21 @@ class AngelOneAPI:
                 continue
         return results
 
+    # -----------------------------------------------------------------
+    # Helper methods
+    # -----------------------------------------------------------------
+    def requestHeaders(self):
+        return {
+            'Content-type': 'application/json',
+            'Accept': 'application/json',
+            'X-UserType': 'USER',
+            'X-SourceID': 'WEB',
+            'X-ClientLocalIP': 'CLIENT_LOCAL_IP',
+            'X-ClientPublicIP': 'CLIENT_PUBLIC_IP',
+            'X-MACAddress': 'MAC_ADDRESS',
+            'X-PrivateKey': self.api_key
+        }
+
     @staticmethod
     def symbol_lookup(symbol: str) -> dict:
         """
@@ -300,3 +339,148 @@ class AngelOneAPI:
             raise KeyError(f"Symbol {symbol} not in watch‑list")
         exch, tok = MAP[symbol]
         return {"exchange": exch, "symbol": f"{symbol}-EQ", "symboltoken": tok}
+
+    # -----------------------------------------------------------------
+    # Report generation and Telegram notification
+    # -----------------------------------------------------------------
+    def generate_top_performers_report(self, limit: int = 10) -> str:
+        """
+        Generate a formatted report of top NSE performers.
+
+        Args:
+            limit: Number of top performers to include in report
+
+        Returns:
+            Formatted report string suitable for Telegram
+        """
+        if not self.access_token:
+            raise RuntimeError("Not logged in – call login() first")
+
+        # Get top performers
+        top_performers = self.get_top_nse_performers(limit=limit, criteria="percent_change")
+
+        if not top_performers:
+            return "[WARN] No top performers data received"
+
+        # Generate report message
+        from datetime import datetime
+        report = f"📊 *Top {limit} NSE Performers*\n\n"
+        report += f"_As of {escape_telegram_text(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}_\n\n"
+
+        for i, stock in enumerate(top_performers, 1):
+            symbol = stock.get('symbol', 'N/A')
+            ltp = stock.get('ltp', 0.0)
+            change = stock.get('change', 0.0)
+            percent_change = stock.get('percent_change', 0.0)
+            volume = stock.get('volume', 0)
+
+            # Format change with emoji
+            change_emoji = "📈" if change >= 0 else "📉"
+            change_str = f"{change:+.2f} ({percent_change:+.2f}%)"
+
+            # Format volume
+            if volume >= 10000000:
+                volume_str = f"{volume/1000000:.1f}M"
+            elif volume >= 10000:
+                volume_str = f"{volume/1000:.0f}K"
+            else:
+                volume_str = str(volume)
+
+            report += f"{i}. *{escape_telegram_text(symbol)}*{change_emoji}\n"
+            report += f"   LTP: ₹{ltp:.2f}\n"
+            report += f"   Change: {change_str}\n"
+            report += f"   Volume: {volume_str}\n\n"
+
+        # Add summary
+        gainers = sum(1 for s in top_performers if s.get('change', 0) > 0)
+        losers = sum(1 for s in top_performers if s.get('change', 0) < 0)
+        report += f"📊 Summary: {gainers} gainers, {losers} losers\n"
+
+        return report
+
+    def send_report_via_telegram(self, report: str) -> bool:
+        """
+        Send a report via Telegram bot.
+
+        Args:
+            report: The report message to send
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Telegram Notification Settings
+        TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Get from @BotFather
+        TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # Your chat ID
+        TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+
+        if not TELEGRAM_ENABLED:
+            print("[INFO] Telegram notifications disabled (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID)")
+            return False
+
+        try:
+            import requests
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            payload = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": report,
+                "parse_mode": "Markdown"
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code != 200:
+                print(f"[WARN] Telegram message failed: {response.text}")
+                return False
+            else:
+                print("[INFO] Telegram message sent successfully")
+                return True
+        except Exception as e:
+            print(f"[WARN] Failed to send Telegram message: {e}")
+            return False
+
+
+# -----------------------------------------------------------------
+# Main execution - runs only once when script is executed directly
+# -----------------------------------------------------------------
+import sys
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Angel One Top Performers Report Generator")
+    print("=" * 60)
+
+    try:
+        # Initialize Angel One API (singleton - init runs only once)
+        api = AngelOneAPI()
+
+        # Login
+        print("[INFO] Logging in to Angel One...")
+        if not api.login():
+            print("[ERROR] Failed to login to Angel One API")
+            sys.exit(1)
+
+        print("[INFO] Generating top performers report...")
+        # Generate report
+        report = api.generate_top_performers_report(limit=10)
+
+        print("\n" + "=" * 60)
+        print("Generated Report:")
+        print("=" * 60)
+        print(report)
+
+        # Send via Telegram
+        print("\n[INFO] Sending report via Telegram...")
+        success = api.send_report_via_telegram(report)
+        if success:
+            print("[INFO] Report sent successfully via Telegram!")
+        else:
+            print("[WARN] Failed to send report via Telegram (check configuration)")
+
+        # Logout
+        api.logout()
+        print("[INFO] Logged out from Angel One")
+
+        print("\n[INFO] Execution completed successfully.")
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"[ERROR] {str(e)}")
+        sys.exit(1)
