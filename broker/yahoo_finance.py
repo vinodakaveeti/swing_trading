@@ -252,6 +252,7 @@ def get_historical_data_for_indicators(symbol: str, interval: str = "FIVE_MINUTE
             "FIFTEEN_MINUTE": "15m",
             "THIRTY_MINUTE": "30m",
             "ONE_HOUR": "1h",
+            "FOUR_HOUR": "1h",  # Fallback to 1h as true 4h not available
             "ONE_DAY": "1d"
         }
         yf_interval = interval_map.get(interval, "5m")

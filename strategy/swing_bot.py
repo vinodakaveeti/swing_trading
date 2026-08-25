@@ -13,9 +13,9 @@ Strategy:
 5. Risk Management: Fixed 2% stop loss, 4% take profit (1:2 risk-reward)
 
 Run:
-    python -m strategy.swing_bot
-or
-    python strategy/swing_bot.py
+    python -m strategy.swing_bot [--csv-file CSV_FILE] [--timeframe TIMEFRAME]
+    or
+    python strategy/swing_bot.py [--csv-file CSV_FILE] [--timeframe TIMEFRAME]
 """
 
 import sys
@@ -55,9 +55,16 @@ VOLUME_MA_PERIOD = 20
 STOP_LOSS_PCT = 0.02  # 2% stop loss
 TAKE_PROFIT_PCT = 0.04  # 4% take profit (1:2 risk-reward)
 
-# Data Parameters
-CHART_INTERVAL = "FIVE_MINUTE"  # Use 5-minute candles for analysis
 LOOKBACK_PERIODS = 50  # Number of candles to fetch for calculations (dynamic based on indicators)
+# Timeframe to yfinance interval mapping
+_TIMEFRAME_TO_YF_INTERVAL = {
+    "FIVE_MINUTE": "5m",
+    "FIFTEEN_MINUTE": "15m",
+    "THIRTY_MINUTE": "30m",
+    "ONE_HOUR": "1h",
+    "FOUR_HOUR": "1h",  # Fallback to 1h as true 4h not available
+    "ONE_DAY": "1d"
+}
 
 POLL_INTERVAL_SEC = 3600  # How often to check for new signals
 LOG_FILE = None  # Set to a path if you want file logging
@@ -237,10 +244,10 @@ def calculate_macd(prices: List[float], fast: int = 12, slow: int = 26, signal: 
 # ----------------------------------------------------------------------
 # Data fetching and processing
 # ----------------------------------------------------------------------
-def get_historical_data(api: YahooFinanceAPI, symbol: str) -> Optional[List[dict]]:
+def get_historical_data(api: YahooFinanceAPI, symbol: str, CHART_INTERVAL: str) -> Optional[List[dict]]:
     """Fetch historical candle data for indicator calculation using Yahoo Finance"""
     try:
-        # Use our Yahoo Finance specific helper function
+        # Pass the timeframe directly to the helper function which handles the mapping
         candles = get_historical_data_for_indicators(
             symbol=symbol,
             interval=CHART_INTERVAL,
@@ -374,7 +381,7 @@ def update_positions(current_prices: Dict[str, float]):
 # ----------------------------------------------------------------------
 # Main trading loop
 # ----------------------------------------------------------------------
-def main(csv_file="ind_nifty50list.csv"):
+def main(csv_file="ind_nifty50list.csv", CHART_INTERVAL="FOUR_HOUR"):
 
     api = YahooFinanceAPI()
 
@@ -516,7 +523,7 @@ def main(csv_file="ind_nifty50list.csv"):
                 last_prices[sym] = ltp
 
                 # Get historical data and calculate indicators
-                candles = get_historical_data(api, sym)
+                candles = get_historical_data(api, sym, CHART_INTERVAL)
                 if candles is None:
                     log_print(f"[WARN] {sym}-EQ: Could not fetch historical data")
                     log_print(f"{sym}-EQ: ₹{ltp:,.2f}  Δ {delta_str}")
@@ -883,10 +890,16 @@ def main(csv_file="ind_nifty50list.csv"):
         log_print("Good‑bye!")
 
 if __name__ == "__main__":
-    # Override csv_file with command line argument if provided
+    # Override csv_file and timeframe with command line arguments if provided
     parser = argparse.ArgumentParser(description='Swing Trading Bot')
     parser.add_argument('--csv-file', type=str, default="ind_nifty50list.csv",
                         help='CSV file containing stock symbols (default: ind_nifty50list.csv)')
+    parser.add_argument('--timeframe', type=str, default="FOUR_HOUR",
+                        choices=['FIVE_MINUTE', 'FIFTEEN_MINUTE', 'THIRTY_MINUTE', 'ONE_HOUR', 'FOUR_HOUR', 'ONE_DAY'],
+                        help='Chart timeframe (default: FOUR_HOUR)')
     args = parser.parse_args()
     csv_file = args.csv_file
-    main(csv_file)
+    # Update the global CHART_INTERVAL variable so get_historical_data uses the correct timeframe
+    global CHART_INTERVAL
+    CHART_INTERVAL = args.timeframe
+    main(csv_file, CHART_INTERVAL)
