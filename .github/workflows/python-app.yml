@@ -14,6 +14,10 @@ on:
         description: 'CSV file containing stock symbols (e.g., ind_nifty50list.csv, ind_nifty100list.csv, ind_nifty200list.csv, ind_nifty500list.csv)'
         required: false
         default: 'ind_nifty50list.csv'
+      timeframe:
+        description: 'Chart timeframe (FIVE_MINUTE, FIFTEEN_MINUTE, THIRTY_MINUTE, ONE_HOUR, FOUR_HOUR, ONE_DAY)'
+        required: false
+        default: 'FOUR_HOUR'
 
 permissions:
   contents: read
@@ -34,5 +38,5 @@ jobs:
           pip install -r requirements.txt
           export TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
           export TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}"
-          python strategy/swing_bot.py --csv-file "${{ github.event.inputs.csv-file || 'ind_nifty50list.csv' }}"
+          python strategy/swing_bot.py --csv-file "${{ github.event.inputs.csv-file || 'ind_nifty50list.csv' }}" --timeframe "${{ github.event.inputs.timeframe || 'FOUR_HOUR' }}"
 
