@@ -41,19 +41,19 @@ _last_watchlist_refresh = 0
 WATCH_LIST_INFO: list[dict] = []          # will be filled at startup; each dict: {symbol, exchange, symboltoken}
 
 # Strategy Parameters
-EMA_FAST = 12
-EMA_SLOW = 26
+EMA_FAST = 20
+EMA_SLOW = 50
 RSI_PERIOD = 14
 RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30
-MACD_FAST = 12
-MACD_SLOW = 26
+MACD_FAST = 19
+MACD_SLOW = 39
 MACD_SIGNAL = 9
 VOLUME_MA_PERIOD = 20
 
 # Risk Management
-STOP_LOSS_PCT = 0.02  # 2% stop loss
-TAKE_PROFIT_PCT = 0.04  # 4% take profit (1:2 risk-reward)
+STOP_LOSS_PCT = 0.01  # 1.0% stop loss
+TAKE_PROFIT_PCT = 0.04  # 4.0% take profit (1:4.00 risk-reward)
 
 LOOKBACK_PERIODS = 50  # Number of candles to fetch for calculations (dynamic based on indicators)
 # Timeframe to yfinance interval mapping
